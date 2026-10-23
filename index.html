@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>FinSplit - Finance & Split Bill Tracker</title>
+  <meta name="description" content="Mockup MVP FinSplit: Asisten Finansial Sosial untuk catat keuangan dan bagi tagihan." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            midnight: '#0b1020',
+            surface: '#131a2e',
+            surface2: '#1b2440',
+            line: '#26314f',
+            income: '#22c55e',
+            expense: '#ef4444',
+            accent: '#6366f1'
+          },
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <style>
+    body { background: radial-gradient(1200px 600px at 50% -10%, #17204a 0%, #0b1020 55%) fixed; }
+    .no-spin::-webkit-outer-spin-button, .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .no-spin { -moz-appearance: textfield; }
+    .view { display: none; }
+    .view.active { display: block; animation: fade .25s ease; }
+    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .nav-btn.active { color: #818cf8; }
+    .nav-btn.active i { transform: translateY(-2px); }
+    .nav-btn i { transition: transform .2s; }
+    .toast-in { animation: toast .3s ease; }
+    @keyframes toast { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+    .pb-safe { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+  </style>
+</head>
+<body class="font-sans text-slate-100 min-h-screen antialiased">
+
+  <!-- Toast -->
+  <div id="toastBox" class="fixed top-4 inset-x-0 z-[100] flex flex-col items-center gap-2 px-4 pointer-events-none"></div>
+
+  <!-- App shell -->
+  <div class="mx-auto max-w-md min-h-screen relative bg-midnight/60 lg:my-6 lg:min-h-[820px] lg:rounded-[2rem] lg:border lg:border-line lg:shadow-2xl lg:overflow-hidden">
+
+    <main class="pb-28 px-4 pt-6">
+
+      <!-- ========== HOME ========== -->
+      <section id="view-home" class="view active">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <p class="text-slate-400 text-sm">Halo,</p>
+            <h1 id="greetName" class="text-xl font-bold">Mahasiswa</h1>
+          </div>
+          <div class="w-10 h-10 rounded-full bg-accent/20 text-accent grid place-items-center"><i class="fa-solid fa-user"></i></div>
+        </div>
+
+        <div class="rounded-3xl p-5 bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 shadow-lg shadow-indigo-900/30">
+          <p class="text-indigo-200 text-sm">Total Saldo</p>
+          <p id="totalBalance" class="text-3xl font-extrabold mt-1">Rp0</p>
+          <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div class="rounded-2xl bg-white/10 p-3">
+              <p class="text-indigo-200 text-xs"><i class="fa-solid fa-arrow-down text-income mr-1"></i>Piutang (akan masuk)</p>
+              <p id="sumPiutang" class="font-bold text-income mt-0.5">Rp0</p>
+            </div>
+            <div class="rounded-2xl bg-white/10 p-3">
+              <p class="text-indigo-200 text-xs"><i class="fa-solid fa-arrow-up text-expense mr-1"></i>Utang (harus bayar)</p>
+              <p id="sumUtang" class="font-bold text-expense mt-0.5">Rp0</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mt-6 mb-3">
+          <h2 class="font-semibold">Dompet Saya</h2>
+          <button id="btnQuick" class="text-sm bg-accent hover:bg-indigo-500 transition px-3 py-1.5 rounded-full font-medium"><i class="fa-solid fa-plus mr-1"></i>Transaksi Cepat</button>
+        </div>
+        <div id="walletList" class="grid grid-cols-3 gap-3"></div>
+
+        <h2 class="font-semibold mt-6 mb-3">Pengeluaran per Kategori</h2>
+        <div class="rounded-2xl bg-surface border border-line p-4 flex items-center gap-4">
+          <div class="relative w-32 h-32 shrink-0">
+            <svg id="donut" viewBox="0 0 42 42" class="w-32 h-32 -rotate-0"></svg>
+            <div class="absolute inset-0 grid place-items-center text-center pointer-events-none">
+              <div>
+                <p class="text-[10px] text-slate-400 leading-none">Total keluar</p>
+                <p id="donutTotal" class="text-sm font-bold leading-tight">Rp0</p>
+              </div>
+            </div>
+          </div>
+          <ul id="donutLegend" class="flex-1 space-y-1.5 text-sm min-w-0"></ul>
+        </div>
+
+        <h2 class="font-semibold mt-6 mb-3">Transaksi Terakhir</h2>
+        <ul id="txList" class="space-y-2"></ul>
+      </section>
+
+      <!-- ========== SPLIT BILL ========== -->
+      <section id="view-split" class="view">
+        <h1 class="text-xl font-bold">Split Bill</h1>
+        <p class="text-slate-400 text-sm mb-4">Bagi tagihan adil, pajak &amp; service dihitung proporsional.</p>
+
+        <div class="rounded-2xl bg-surface border border-line p-4 space-y-3">
+          <div>
+            <label class="text-xs text-slate-400">Nama acara</label>
+            <input id="evName" type="text" value="Makan malam di Warung Bu Tini" class="mt-1 w-full bg-surface2 border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-accent" />
+          </div>
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label class="text-xs text-slate-400">Pajak (%)</label>
+              <input id="evTax" type="number" inputmode="decimal" value="10" min="0" class="no-spin mt-1 w-full bg-surface2 border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label class="text-xs text-slate-400">Service (%)</label>
+              <input id="evSvc" type="number" inputmode="decimal" value="5" min="0" class="no-spin mt-1 w-full bg-surface2 border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-accent" />
+            </div>
+            <div>
+              <label class="text-xs text-slate-400">Dibayar dari</label>
+              <select id="evWallet" class="mt-1 w-full bg-surface2 border border-line rounded-xl px-2 py-2.5 text-sm outline-none focus:border-accent"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mt-5 mb-2">
+          <h2 class="font-semibold">Pesanan</h2>
+          <button id="btnAddRow" class="text-sm text-accent hover:text-indigo-300 font-medium"><i class="fa-solid fa-plus mr-1"></i>Tambah baris</button>
+        </div>
+        <p class="text-xs text-slate-500 mb-2">Tulis <b class="text-slate-300">Saya</b> untuk pesananmu. Nama yang sama otomatis digabung.</p>
+        <div id="splitRows" class="space-y-2"></div>
+
+        <h2 class="font-semibold mt-5 mb-2">Hasil Pembagian</h2>
+        <div class="rounded-2xl bg-surface border border-line overflow-hidden">
+          <ul id="splitResult" class="divide-y divide-line text-sm"></ul>
+          <div class="bg-surface2 px-4 py-3 text-sm space-y-1">
+            <div class="flex justify-between text-slate-400"><span>Subtotal</span><span id="rSub">Rp0</span></div>
+            <div class="flex justify-between text-slate-400"><span>Pajak</span><span id="rTax">Rp0</span></div>
+            <div class="flex justify-between text-slate-400"><span>Service</span><span id="rSvc">Rp0</span></div>
+            <div class="flex justify-between font-bold text-base pt-1 border-t border-line"><span>Total</span><span id="rTotal">Rp0</span></div>
+          </div>
+        </div>
+
+        <button id="btnSaveBill" class="mt-5 w-full bg-income hover:bg-green-500 text-slate-950 font-bold rounded-2xl py-3.5 transition active:scale-[.98]">
+          <i class="fa-solid fa-paper-plane mr-2"></i>Simpan &amp; Tagih
+        </button>
+        <p class="text-xs text-slate-500 text-center mt-2">Total tercatat sebagai pengeluaran, sisanya jadi piutang.</p>
+      </section>
+
+      <!-- ========== RIWAYAT & PENAGIHAN ========== -->
+      <section id="view-tagih" class="view">
+        <h1 class="text-xl font-bold">Riwayat &amp; Penagihan</h1>
+        <p class="text-slate-400 text-sm mb-4">Pantau piutang dan utang, tagih tanpa sungkan.</p>
+
+        <div class="rounded-2xl bg-surface border border-line p-4 mb-4">
+          <div class="flex justify-between text-sm mb-2">
+            <span class="text-slate-400">Progres pelunasan piutang</span>
+            <span id="progressText" class="font-semibold">0%</span>
+          </div>
+          <div class="h-2.5 rounded-full bg-surface2 overflow-hidden">
+            <div id="progressBar" class="h-full bg-income rounded-full transition-all duration-500" style="width:0%"></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-1 bg-surface rounded-xl p-1 mb-4 text-sm font-medium" id="tagihTabs">
+          <button data-sub="piutang" class="sub-tab py-2 rounded-lg bg-accent text-white">Piutang</button>
+          <button data-sub="utang" class="sub-tab py-2 rounded-lg text-slate-400">Utang</button>
+          <button data-sub="riwayat" class="sub-tab py-2 rounded-lg text-slate-400">Riwayat</button>
+        </div>
+        <ul id="tagihList" class="space-y-3"></ul>
+      </section>
+
+      <!-- ========== PROFIL ========== -->
+      <section id="view-profil" class="view">
+        <h1 class="text-xl font-bold mb-4">Profil</h1>
+
+        <div class="rounded-2xl bg-surface border border-line p-4 space-y-3">
+          <div class="flex items-center gap-3">
+            <div class="w-14 h-14 rounded-full bg-accent/20 text-accent grid place-items-center text-2xl"><i class="fa-solid fa-user"></i></div>
+            <div>
+              <p id="pfName" class="font-semibold">Mahasiswa</p>
+              <p class="text-xs text-slate-400">Akun demo FinSplit</p>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-400">Nama</label>
+            <input id="inName" type="text" class="mt-1 w-full bg-surface2 border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-accent" />
+          </div>
+          <div>
+            <label class="text-xs text-slate-400">Rekening untuk penagihan</label>
+            <input id="inBank" type="text" class="mt-1 w-full bg-surface2 border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-accent" />
+          </div>
+          <button id="btnSaveProfile" class="w-full bg-accent hover:bg-indigo-500 transition rounded-xl py-2.5 font-semibold text-sm">Simpan Profil</button>
+        </div>
+
+        <h2 class="font-semibold mt-6 mb-3">Kategori Pengeluaran</h2>
+        <div class="rounded-2xl bg-surface border border-line p-4">
+          <ul id="catList" class="space-y-2 mb-4"></ul>
+          <form id="catForm" class="flex gap-2">
+            <input id="catName" type="text" maxlength="16" placeholder="Kategori baru" class="flex-1 min-w-0 bg-surface2 border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-accent" />
+            <input id="catColor" type="color" value="#14b8a6" class="w-11 h-11 rounded-xl bg-surface2 border border-line p-1 cursor-pointer" />
+            <button class="bg-accent hover:bg-indigo-500 transition rounded-xl px-4 font-semibold text-sm">Tambah</button>
+          </form>
+        </div>
+
+        <button id="btnReset" class="mt-6 w-full border border-expense/40 text-expense hover:bg-expense/10 transition rounded-xl py-2.5 text-sm font-medium">
+          <i class="fa-solid fa-rotate-left mr-2"></i>Reset Data Demo
+        </button>
+        <p class="text-center text-xs text-slate-600 mt-4">FinSplit Mockup MVP &middot; data hanya tersimpan di browser ini</p>
+      </section>
+    </main>
+
+    <!-- Bottom nav -->
+    <nav class="fixed lg:absolute bottom-0 inset-x-0 mx-auto max-w-md bg-surface/95 backdrop-blur border-t border-line pb-safe z-40">
+      <div class="grid grid-cols-4 text-xs">
+        <button class="nav-btn active py-3 flex flex-col items-center gap-1 text-slate-400" data-tab="home"><i class="fa-solid fa-house text-lg"></i>Home</button>
+        <button class="nav-btn py-3 flex flex-col items-center gap-1 text-slate-400" data-tab="split"><i class="fa-solid fa-receipt text-lg"></i>Split Bill</button>
+        <button class="nav-btn py-3 flex flex-col items-center gap-1 text-slate-400 relative" data-tab="tagih"><i class="fa-solid fa-clock-rotate-left text-lg"></i>Riwayat<span id="navBadge" class="hidden absolute top-2 right-[28%] min-w-[16px] h-4 px-1 rounded-full bg-expense text-white text-[10px] font-bold grid place-items-center">0</span></button>
+        <button class="nav-btn py-3 flex flex-col items-center gap-1 text-slate-400" data-tab="profil"><i class="fa-solid fa-gear text-lg"></i>Profil</button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- Modal: transaksi cepat -->
+  <div id="modalQuick" class="hidden fixed inset-0 z-[90] bg-black/70 items-end sm:items-center justify-center">
+    <div class="w-full max-w-md bg-surface border border-line rounded-t-3xl sm:rounded-3xl p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-lg">Transaksi Cepat</h3>
+        <button data-close class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <form id="quickForm" class="space-y-3">
+        <div class="grid grid-cols-2 gap-1 bg-surface2 rounded-xl p-1 text-sm font-medium">
+          <button type="button" data-type="out" class="type-btn py-2 rounded-lg bg-expense text-white">Pengeluaran</button>
+          <button type="button" data-type="in" class="type-btn py-2 rounded-lg text-slate-400">Pemasukan</button>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400">Nominal (Rp)</label>
+          <input id="qAmount" type="number" inputmode="numeric" min="1" placeholder="0" required class="no-spin mt-1 w-full bg-surface2 border border-line rounded-xl px-3 py-3 text-lg font-semibold outline-none focus:border-accent" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-400">Keterangan</label>
+          <input id="qTitle" type="text" placeholder="mis. Kopi susu" required class="mt-1 w-full bg-surface2 border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-accent" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-slate-400">Dompet</label>
+            <select id="qWallet" class="mt-1 w-full bg-surface2 border border-line rounded-xl px-2 py-2.5 text-sm outline-none focus:border-accent"></select>
+          </div>
+          <div id="qCatWrap">
+            <label class="text-xs text-slate-400">Kategori</label>
+            <select id="qCat" class="mt-1 w-full bg-surface2 border border-line rounded-xl px-2 py-2.5 text-sm outline-none focus:border-accent"></select>
+          </div>
+        </div>
+        <button class="w-full bg-accent hover:bg-indigo-500 transition rounded-xl py-3 font-bold">Simpan Transaksi</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: generator WhatsApp -->
+  <div id="modalWA" class="hidden fixed inset-0 z-[90] bg-black/70 items-end sm:items-center justify-center">
+    <div class="w-full max-w-md bg-surface border border-line rounded-t-3xl sm:rounded-3xl p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-lg"><i class="fa-brands fa-whatsapp text-income mr-2"></i>Generator WhatsApp</h3>
+        <button data-close class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <p class="text-xs text-slate-400 mb-2">Pesan penagihan sudah disusun sopan. Boleh diedit sebelum dikirim.</p>
+      <textarea id="waText" rows="7" class="w-full bg-surface2 border border-line rounded-xl px-3 py-2.5 text-sm outline-none focus:border-accent"></textarea>
+      <div class="grid grid-cols-2 gap-3 mt-3">
+        <button id="waCopy" class="border border-line hover:bg-surface2 transition rounded-xl py-2.5 font-semibold text-sm"><i class="fa-regular fa-copy mr-2"></i>Salin</button>
+        <button id="waSend" class="bg-income hover:bg-green-500 text-slate-950 transition rounded-xl py-2.5 font-bold text-sm"><i class="fa-brands fa-whatsapp mr-2"></i>Buka WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ===================== Util ===================== */
+    const $ = (s, r = document) => r.querySelector(s);
+    const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+    const rp = n => 'Rp' + Math.round(n).toLocaleString('id-ID');
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const uid = () => Math.random().toString(36).slice(2, 9);
+    const todayStr = () => new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+
+    function toast(msg, type = 'ok') {
+      const el = document.createElement('div');
+      const color = type === 'err' ? 'bg-expense' : type === 'info' ? 'bg-accent' : 'bg-income text-slate-950';
+      el.className = `toast-in pointer-events-auto max-w-sm w-full ${color} text-sm font-semibold px-4 py-3 rounded-xl shadow-lg`;
+      el.textContent = msg;
+      $('#toastBox').appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 2400);
+    }
+
+    /* ===================== State ===================== */
+    const KEY = 'finsplit-mvp-v1';
+    const defaults = () => ({
+      user: { name: 'Mahasiswa', bank: 'BCA 1234567890 a.n. Mahasiswa' },
+      wallets: [
+        { id: 'w1', name: 'Tunai', icon: 'fa-money-bill-wave', balance: 450000 },
+        { id: 'w2', name: 'Rekening Bank', icon: 'fa-building-columns', balance: 2350000 },
+        { id: 'w3', name: 'Dompet Digital', icon: 'fa-mobile-screen', balance: 780000 }
+      ],
+      cats: [
+        { name: 'Makan', color: '#f97316' },
+        { name: 'Transport', color: '#3b82f6' },
+        { name: 'Belanja', color: '#ec4899' },
+        { name: 'Hiburan', color: '#a855f7' },
+        { name: 'Tagihan', color: '#eab308' }
+      ],
+      tx: [
+        { id: uid(), type: 'in', title: 'Uang saku bulanan', cat: 'Pemasukan', amount: 1500000, wallet: 'w2', date: '1 Okt' },
+        { id: uid(), type: 'out', title: 'Makan siang kantin', cat: 'Makan', amount: 28000, wallet: 'w1', date: '20 Okt' },
+        { id: uid(), type: 'out', title: 'Ojek online ke kampus', cat: 'Transport', amount: 22000, wallet: 'w3', date: '21 Okt' },
+        { id: uid(), type: 'out', title: 'Paket data', cat: 'Tagihan', amount: 65000, wallet: 'w3', date: '22 Okt' },
+        { id: uid(), type: 'out', title: 'Nonton bareng', cat: 'Hiburan', amount: 120000, wallet: 'w2', date: '22 Okt' },
+        { id: uid(), type: 'out', title: 'Kaos & alat tulis', cat: 'Belanja', amount: 175000, wallet: 'w2', date: '23 Okt' }
+      ],
+      piutang: [
+        { id: uid(), name: 'Dimas', event: 'Nonton bareng', amount: 85000, paid: false, wallet: 'w2' },
+        { id: uid(), name: 'Rina', event: 'Patungan galon & gas', amount: 32000, paid: true, wallet: 'w1' }
+      ],
+      utang: [
+        { id: uid(), name: 'Ayu', event: 'Talangan fotokopi', amount: 40000, paid: false }
+      ]
+    });
+
+    let S;
+    try { S = JSON.parse(localStorage.getItem(KEY)) || defaults(); } catch (e) { S = defaults(); }
+    const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+    const walletName = id => (S.wallets.find(w => w.id === id) || {}).name || '-';
+    const catColor = name => (S.cats.find(c => c.name === name) || {}).color || '#64748b';
+
+    /* ===================== Navigasi ===================== */
+    function go(tab) {
+      $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + tab));
+      $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (tab === 'tagih') renderTagih();
+    }
+    $$('.nav-btn').forEach(b => b.addEventListener('click', () => go(b.dataset.tab)));
+
+    /* ===================== HOME ===================== */
+    function renderHome() {
+      $('#greetName').textContent = S.user.name;
+      $('#totalBalance').textContent = rp(S.wallets.reduce((a, w) => a + w.balance, 0));
+      $('#sumPiutang').textContent = rp(S.piutang.filter(p => !p.paid).reduce((a, p) => a + p.amount, 0));
+      $('#sumUtang').textContent = rp(S.utang.filter(p => !p.paid).reduce((a, p) => a + p.amount, 0));
+
+      $('#walletList').innerHTML = S.wallets.map(w => `
+        <div class="rounded-2xl bg-surface border border-line p-3">
+          <div class="w-8 h-8 rounded-lg bg-accent/15 text-accent grid place-items-center mb-2"><i class="fa-solid ${w.icon} text-sm"></i></div>
+          <p class="text-[11px] text-slate-400 leading-tight">${esc(w.name)}</p>
+          <p class="text-sm font-bold mt-0.5 truncate">${rp(w.balance)}</p>
+        </div>`).join('');
+
+      // donut
+      const outs = S.tx.filter(t => t.type === 'out');
+      const total = outs.reduce((a, t) => a + t.amount, 0);
+      const byCat = {};
+      outs.forEach(t => byCat[t.cat] = (byCat[t.cat] || 0) + t.amount);
+      const entries = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+      let offset = 25, circles = '<circle cx="21" cy="21" r="15.9155" fill="none" stroke="#1b2440" stroke-width="6"></circle>';
+      entries.forEach(([name, val]) => {
+        const pct = total ? (val / total) * 100 : 0;
+        circles += `<circle cx="21" cy="21" r="15.9155" fill="none" stroke="${catColor(name)}" stroke-width="6" stroke-dasharray="${pct} ${100 - pct}" stroke-dashoffset="${offset}"></circle>`;
+        offset -= pct;
+      });
+      $('#donut').innerHTML = circles;
+      $('#donutTotal').textContent = rp(total);
+      $('#donutLegend').innerHTML = entries.length ? entries.slice(0, 5).map(([name, val]) => `
+        <li class="flex items-center justify-between gap-2">
+          <span class="flex items-center gap-2 min-w-0"><span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${catColor(name)}"></span><span class="truncate text-slate-300">${esc(name)}</span></span>
+          <span class="text-xs text-slate-400">${Math.round(val / total * 100)}%</span>
+        </li>`).join('') : '<li class="text-slate-500 text-sm">Belum ada pengeluaran</li>';
+
+      // transaksi terakhir
+      $('#txList').innerHTML = S.tx.slice().reverse().slice(0, 6).map(t => `
+        <li class="flex items-center gap-3 rounded-2xl bg-surface border border-line p-3">
+          <div class="w-10 h-10 rounded-xl grid place-items-center ${t.type === 'in' ? 'bg-income/15 text-income' : 'bg-expense/15 text-expense'}">
+            <i class="fa-solid ${t.type === 'in' ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium truncate">${esc(t.title)}</p>
+            <p class="text-xs text-slate-500">${esc(t.cat)} &middot; ${esc(walletName(t.wallet))} &middot; ${esc(t.date)}</p>
+          </div>
+          <p class="text-sm font-bold ${t.type === 'in' ? 'text-income' : 'text-expense'}">${t.type === 'in' ? '+' : '-'}${rp(t.amount)}</p>
+        </li>`).join('');
+    }
+
+    /* ----- Modal transaksi cepat ----- */
+    let qType = 'out';
+    function fillWalletSelects() {
+      const opts = S.wallets.map(w => `<option value="${w.id}">${esc(w.name)}</option>`).join('');
+      $('#qWallet').innerHTML = opts;
+      const cur = $('#evWallet').value;
+      $('#evWallet').innerHTML = opts;
+      if (cur) $('#evWallet').value = cur;
+    }
+    function fillCatSelect() { $('#qCat').innerHTML = S.cats.map(c => `<option>${esc(c.name)}</option>`).join(''); }
+    function setType(t) {
+      qType = t;
+      $$('.type-btn').forEach(b => {
+        const active = b.dataset.type === t;
+        b.className = 'type-btn py-2 rounded-lg ' + (active ? (t === 'out' ? 'bg-expense text-white' : 'bg-income text-slate-950') : 'text-slate-400');
+      });
+      $('#qCatWrap').style.display = t === 'out' ? '' : 'none';
+    }
+    const openModal = id => { const m = $(id); m.classList.remove('hidden'); m.classList.add('flex'); };
+    const closeModals = () => $$('#modalQuick, #modalWA').forEach(m => { m.classList.add('hidden'); m.classList.remove('flex'); });
+    $$('[data-close]').forEach(b => b.addEventListener('click', closeModals));
+    ['#modalQuick', '#modalWA'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id === id.slice(1)) closeModals(); }));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModals(); });
+
+    $('#btnQuick').addEventListener('click', () => { setType('out'); $('#quickForm').reset(); openModal('#modalQuick'); setTimeout(() => $('#qAmount').focus(), 50); });
+    $$('.type-btn').forEach(b => b.addEventListener('click', () => setType(b.dataset.type)));
+    $('#quickForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const amount = Number($('#qAmount').value);
+      if (!amount || amount <= 0) return toast('Nominal harus lebih dari 0', 'err');
+      const wid = $('#qWallet').value;
+      const w = S.wallets.find(x => x.id === wid);
+      if (qType === 'out' && w.balance < amount) return toast(`Saldo ${w.name} tidak cukup`, 'err');
+      w.balance += qType === 'in' ? amount : -amount;
+      S.tx.push({ id: uid(), type: qType, title: $('#qTitle').value.trim(), cat: qType === 'in' ? 'Pemasukan' : $('#qCat').value, amount, wallet: wid, date: todayStr() });
+      save(); renderAll(); closeModals();
+      toast(qType === 'in' ? 'Pemasukan dicatat' : 'Pengeluaran dicatat');
+    });
+
+    /* ===================== SPLIT BILL ===================== */
+    let rows = [
+      { name: 'Saya', item: 'Nasi goreng', price: 28000 },
+      { name: 'Rina', item: 'Ayam bakar', price: 35000 },
+      { name: 'Dimas', item: 'Mie goreng', price: 26000 },
+      { name: 'Rina', item: 'Es teh', price: 6000 },
+      { name: 'Dimas', item: 'Es jeruk', price: 8000 }
+    ];
+
+    function renderRows() {
+      $('#splitRows').innerHTML = rows.map((r, i) => `
+        <div class="grid grid-cols-[1fr_1.2fr_1fr_auto] gap-2 items-center">
+          <input data-i="${i}" data-f="name" value="${esc(r.name)}" placeholder="Nama" class="min-w-0 bg-surface border border-line rounded-xl px-2.5 py-2.5 text-sm outline-none focus:border-accent" />
+          <input data-i="${i}" data-f="item" value="${esc(r.item)}" placeholder="Pesanan" class="min-w-0 bg-surface border border-line rounded-xl px-2.5 py-2.5 text-sm outline-none focus:border-accent" />
+          <input data-i="${i}" data-f="price" type="number" inputmode="numeric" value="${r.price || ''}" placeholder="Harga" class="no-spin min-w-0 bg-surface border border-line rounded-xl px-2.5 py-2.5 text-sm outline-none focus:border-accent" />
+          <button data-del="${i}" class="w-8 h-10 text-slate-500 hover:text-expense" aria-label="Hapus baris"><i class="fa-solid fa-trash-can"></i></button>
+        </div>`).join('');
+      calc();
+    }
+
+    function calc() {
+      const tax = Math.max(0, Number($('#evTax').value) || 0) / 100;
+      const svc = Math.max(0, Number($('#evSvc').value) || 0) / 100;
+      const map = new Map();
+      rows.forEach(r => {
+        const name = r.name.trim();
+        if (!name || !(r.price > 0)) return;
+        const key = name.toLowerCase();
+        const e = map.get(key) || { name, sub: 0 };
+        e.sub += r.price;
+        map.set(key, e);
+      });
+      const people = [...map.values()].map(p => ({ ...p, tax: Math.round(p.sub * tax), svc: Math.round(p.sub * svc) }));
+      people.forEach(p => p.total = p.sub + p.tax + p.svc);
+      const sum = k => people.reduce((a, p) => a + p[k], 0);
+
+      $('#splitResult').innerHTML = people.length ? people.map(p => `
+        <li class="px-4 py-3 flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="font-medium truncate">${esc(p.name)}${p.name.toLowerCase() === 'saya' ? ' <span class="text-[10px] ml-1 px-1.5 py-0.5 rounded bg-accent/20 text-accent">Pembayar</span>' : ''}</p>
+            <p class="text-xs text-slate-500">Pesanan ${rp(p.sub)} + pajak ${rp(p.tax)} + service ${rp(p.svc)}</p>
+          </div>
+          <p class="font-bold shrink-0">${rp(p.total)}</p>
+        </li>`).join('') : '<li class="px-4 py-6 text-center text-slate-500">Isi pesanan untuk melihat hasil</li>';
+      $('#rSub').textContent = rp(sum('sub'));
+      $('#rTax').textContent = rp(sum('tax'));
+      $('#rSvc').textContent = rp(sum('svc'));
+      $('#rTotal').textContent = rp(sum('total'));
+      return people;
+    }
+
+    $('#splitRows').addEventListener('input', e => {
+      const i = e.target.dataset.i, f = e.target.dataset.f;
+      if (i === undefined) return;
+      rows[i][f] = f === 'price' ? Number(e.target.value) || 0 : e.target.value;
+      calc();
+    });
+    $('#splitRows').addEventListener('click', e => {
+      const btn = e.target.closest('[data-del]');
+      if (!btn) return;
+      rows.splice(Number(btn.dataset.del), 1);
+      renderRows();
+    });
+    $('#btnAddRow').addEventListener('click', () => { rows.push({ name: '', item: '', price: 0 }); renderRows(); });
+    ['#evTax', '#evSvc'].forEach(id => $(id).addEventListener('input', calc));
+
+    $('#btnSaveBill').addEventListener('click', () => {
+      const people = calc();
+      if (!people.length) return toast('Isi minimal satu pesanan dulu', 'err');
+      const total = people.reduce((a, p) => a + p.total, 0);
+      const wid = $('#evWallet').value;
+      const w = S.wallets.find(x => x.id === wid);
+      if (w.balance < total) return toast(`Saldo ${w.name} tidak cukup untuk membayar tagihan`, 'err');
+      const ev = $('#evName').value.trim() || 'Split Bill';
+      w.balance -= total;
+      S.tx.push({ id: uid(), type: 'out', title: ev, cat: S.cats.some(c => c.name === 'Makan') ? 'Makan' : S.cats[0].name, amount: total, wallet: wid, date: todayStr() });
+      const others = people.filter(p => p.name.toLowerCase() !== 'saya');
+      others.forEach(p => S.piutang.push({ id: uid(), name: p.name, event: ev, amount: p.total, paid: false, wallet: wid }));
+      save(); renderAll();
+      toast(`Tersimpan! ${others.length} piutang baru dibuat`);
+      subTab = 'piutang'; go('tagih');
+    });
+
+    /* ===================== RIWAYAT & PENAGIHAN ===================== */
+    let subTab = 'piutang';
+    let waTarget = null;
+
+    function renderTagih() {
+      $$('.sub-tab').forEach(b => b.className = 'sub-tab py-2 rounded-lg ' + (b.dataset.sub === subTab ? 'bg-accent text-white' : 'text-slate-400'));
+
+      const totalP = S.piutang.reduce((a, p) => a + p.amount, 0);
+      const paidP = S.piutang.filter(p => p.paid).reduce((a, p) => a + p.amount, 0);
+      const pct = totalP ? Math.round(paidP / totalP * 100) : 0;
+      $('#progressText').textContent = `${pct}% (${rp(paidP)} / ${rp(totalP)})`;
+      $('#progressBar').style.width = pct + '%';
+
+      const list = $('#tagihList');
+      if (subTab === 'piutang') {
+        list.innerHTML = S.piutang.length ? S.piutang.slice().reverse().map(p => `
+          <li class="rounded-2xl bg-surface border ${p.paid ? 'border-income/30' : 'border-expense/30'} p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-semibold truncate">${esc(p.name)}</p>
+                <p class="text-xs text-slate-500 truncate">${esc(p.event)}</p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="font-bold ${p.paid ? 'text-income' : 'text-expense'}">${rp(p.amount)}</p>
+                <span class="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${p.paid ? 'bg-income/15 text-income' : 'bg-expense/15 text-expense'}">${p.paid ? 'LUNAS' : 'BELUM LUNAS'}</span>
+              </div>
+            </div>
+            ${p.paid ? '' : `
+            <div class="grid grid-cols-2 gap-2 mt-3">
+              <button data-wa="${p.id}" class="bg-income/15 hover:bg-income/25 text-income rounded-xl py-2 text-sm font-semibold"><i class="fa-brands fa-whatsapp mr-1.5"></i>Tagih</button>
+              <button data-paid="${p.id}" class="bg-surface2 hover:bg-line rounded-xl py-2 text-sm font-semibold"><i class="fa-solid fa-check mr-1.5"></i>Tandai lunas</button>
+            </div>`}
+          </li>`).join('') : emptyState('Belum ada piutang');
+      } else if (subTab === 'utang') {
+        list.innerHTML = S.utang.length ? S.utang.slice().reverse().map(p => `
+          <li class="rounded-2xl bg-surface border ${p.paid ? 'border-income/30' : 'border-expense/30'} p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="font-semibold truncate">Utang ke ${esc(p.name)}</p>
+                <p class="text-xs text-slate-500 truncate">${esc(p.event)}</p>
+              </div>
+              <div class="text-right shrink-0">
+                <p class="font-bold ${p.paid ? 'text-income' : 'text-expense'}">${rp(p.amount)}</p>
+                <span class="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${p.paid ? 'bg-income/15 text-income' : 'bg-expense/15 text-expense'}">${p.paid ? 'LUNAS' : 'MENUNGGAK'}</span>
+              </div>
+            </div>
+            ${p.paid ? '' : `<button data-pay="${p.id}" class="mt-3 w-full bg-expense/15 hover:bg-expense/25 text-expense rounded-xl py-2 text-sm font-semibold"><i class="fa-solid fa-money-bill-transfer mr-1.5"></i>Bayar sekarang (dari Rekening Bank)</button>`}
+          </li>`).join('') : emptyState('Tidak ada utang. Mantap!');
+      } else {
+        list.innerHTML = S.tx.length ? S.tx.slice().reverse().map(t => `
+          <li class="flex items-center gap-3 rounded-2xl bg-surface border border-line p-3">
+            <div class="w-9 h-9 rounded-xl grid place-items-center ${t.type === 'in' ? 'bg-income/15 text-income' : 'bg-expense/15 text-expense'}"><i class="fa-solid ${t.type === 'in' ? 'fa-arrow-down' : 'fa-arrow-up'} text-sm"></i></div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium truncate">${esc(t.title)}</p>
+              <p class="text-xs text-slate-500">${esc(t.cat)} &middot; ${esc(walletName(t.wallet))} &middot; ${esc(t.date)}</p>
+            </div>
+            <p class="text-sm font-bold ${t.type === 'in' ? 'text-income' : 'text-expense'}">${t.type === 'in' ? '+' : '-'}${rp(t.amount)}</p>
+          </li>`).join('') : emptyState('Belum ada transaksi');
+      }
+
+      const open = S.piutang.filter(p => !p.paid).length;
+      const badge = $('#navBadge');
+      badge.textContent = open;
+      badge.classList.toggle('hidden', open === 0);
+    }
+    const emptyState = msg => `<li class="text-center text-slate-500 py-10"><i class="fa-regular fa-face-smile text-2xl mb-2 block"></i>${msg}</li>`;
+
+    $$('.sub-tab').forEach(b => b.addEventListener('click', () => { subTab = b.dataset.sub; renderTagih(); }));
+
+    $('#tagihList').addEventListener('click', e => {
+      const wa = e.target.closest('[data-wa]');
+      const paid = e.target.closest('[data-paid]');
+      const pay = e.target.closest('[data-pay]');
+      if (wa) {
+        const p = S.piutang.find(x => x.id === wa.dataset.wa);
+        waTarget = p;
+        $('#waText').value =
+`Halo ${p.name}! 👋
+Mau ingetin patungan "${p.event}" ya, bagianmu ${rp(p.amount)}.
+Kalau sempat, boleh transfer ke:
+${S.user.bank}
+
+Makasih banyak ya, santai aja kapan bisa! 🙏`;
+        openModal('#modalWA');
+      }
+      if (paid) {
+        const p = S.piutang.find(x => x.id === paid.dataset.paid);
+        p.paid = true;
+        const w = S.wallets.find(x => x.id === p.wallet) || S.wallets[0];
+        w.balance += p.amount;
+        S.tx.push({ id: uid(), type: 'in', title: `Pelunasan dari ${p.name}`, cat: 'Pemasukan', amount: p.amount, wallet: w.id, date: todayStr() });
+        save(); renderAll(); toast(`${p.name} lunas. Saldo ${w.name} bertambah`);
+      }
+      if (pay) {
+        const p = S.utang.find(x => x.id === pay.dataset.pay);
+        const w = S.wallets.find(x => x.id === 'w2') || S.wallets[0];
+        if (w.balance < p.amount) return toast(`Saldo ${w.name} tidak cukup`, 'err');
+        w.balance -= p.amount; p.paid = true;
+        S.tx.push({ id: uid(), type: 'out', title: `Bayar utang ke ${p.name}`, cat: S.cats[0].name, amount: p.amount, wallet: w.id, date: todayStr() });
+        save(); renderAll(); toast('Utang berhasil dibayar');
+      }
+    });
+
+    $('#waCopy').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText($('#waText').value); toast('Pesan disalin', 'info'); }
+      catch (e) { $('#waText').select(); toast('Tekan Ctrl/Cmd+C untuk menyalin', 'info'); }
+    });
+    $('#waSend').addEventListener('click', () => {
+      window.open('https://wa.me/?text=' + encodeURIComponent($('#waText').value), '_blank', 'noopener');
+    });
+
+    /* ===================== PROFIL ===================== */
+    function renderProfil() {
+      $('#pfName').textContent = S.user.name;
+      $('#inName').value = S.user.name;
+      $('#inBank').value = S.user.bank;
+      $('#catList').innerHTML = S.cats.map((c, i) => `
+        <li class="flex items-center justify-between gap-3 bg-surface2 rounded-xl px-3 py-2.5">
+          <span class="flex items-center gap-2.5 min-w-0"><span class="w-3 h-3 rounded-full shrink-0" style="background:${c.color}"></span><span class="text-sm truncate">${esc(c.name)}</span></span>
+          <button data-delcat="${i}" class="text-slate-500 hover:text-expense" aria-label="Hapus kategori"><i class="fa-solid fa-xmark"></i></button>
+        </li>`).join('');
+    }
+    $('#btnSaveProfile').addEventListener('click', () => {
+      S.user.name = $('#inName').value.trim() || 'Mahasiswa';
+      S.user.bank = $('#inBank').value.trim() || '-';
+      save(); renderAll(); toast('Profil disimpan');
+    });
+    $('#catForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = $('#catName').value.trim();
+      if (!name) return toast('Isi nama kategori', 'err');
+      if (S.cats.some(c => c.name.toLowerCase() === name.toLowerCase())) return toast('Kategori sudah ada', 'err');
+      S.cats.push({ name, color: $('#catColor').value });
+      $('#catName').value = '';
+      save(); renderAll(); toast('Kategori ditambahkan');
+    });
+    $('#catList').addEventListener('click', e => {
+      const b = e.target.closest('[data-delcat]');
+      if (!b) return;
+      if (S.cats.length <= 1) return toast('Minimal satu kategori', 'err');
+      S.cats.splice(Number(b.dataset.delcat), 1);
+      save(); renderAll(); toast('Kategori dihapus', 'info');
+    });
+    $('#btnReset').addEventListener('click', () => {
+      if (!confirm('Kembalikan semua data ke contoh awal?')) return;
+      S = defaults(); save(); renderAll(); toast('Data demo direset', 'info');
+    });
+
+    /* ===================== Init ===================== */
+    function renderAll() {
+      fillWalletSelects(); fillCatSelect();
+      renderHome(); renderTagih(); renderProfil(); calc();
+    }
+    renderAll();
+    renderRows();
+  </script>
+</body>
+</html>

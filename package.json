@@ -1,0 +1,15 @@
+{
+  "name": "finsplit-mvp",
+  "version": "1.0.0",
+  "description": "Mockup MVP FinSplit - Finance & Split Bill Tracker",
+  "private": true,
+  "scripts": {
+    "start": "serve . -l $PORT"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}
